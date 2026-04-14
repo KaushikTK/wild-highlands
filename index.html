@@ -159,9 +159,28 @@
             height: 100%;
             pointer-events: auto;
         }
+
+        /* Landscape Orientation Warning */
+        #orientation-warning {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: #222;
+            color: white;
+            z-index: 1000;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+        }
     </style>
 </head>
 <body>
+
+<div id="orientation-warning">
+    <h2>PLEASE ROTATE DEVICE</h2>
+    <p>Landscape mode is required for combat.</p>
+</div>
 
 <div id="ui">
     <div id="stats">NEUTRALIZED: <span id="score">0</span></div>
@@ -233,6 +252,7 @@ const instructions = document.getElementById('instructions');
 const gameOverScreen = document.getElementById('game-over');
 const scoreEl = document.getElementById('score');
 const mobileControls = document.getElementById('mobile-controls');
+const warning = document.getElementById('orientation-warning');
 
 // State for mobile
 const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
@@ -286,12 +306,41 @@ function init() {
     
     if (isMobile) {
         setupMobileControls();
+        checkOrientation();
+        window.addEventListener('orientationchange', checkOrientation);
     } else {
         setupDesktopControls();
     }
 
     window.addEventListener('resize', onWindowResize);
     animate();
+}
+
+function checkOrientation() {
+    if (window.innerHeight > window.innerWidth) {
+        warning.style.display = 'flex';
+    } else {
+        warning.style.display = 'none';
+    }
+}
+
+async function requestMobileFeatures() {
+    if (!isMobile) return;
+    
+    // Request Fullscreen
+    try {
+        const docEl = document.documentElement;
+        if (docEl.requestFullscreen) await docEl.requestFullscreen();
+        else if (docEl.webkitRequestFullscreen) await docEl.webkitRequestFullscreen();
+        else if (docEl.msRequestFullscreen) await docEl.msRequestFullscreen();
+    } catch (e) { console.warn("Fullscreen request failed", e); }
+
+    // Request Landscape Orientation
+    try {
+        if (screen.orientation && screen.orientation.lock) {
+            await screen.orientation.lock('landscape').catch(e => console.warn(e));
+        }
+    } catch (e) { console.warn("Orientation lock failed", e); }
 }
 
 function setupTerrain() {
@@ -377,6 +426,7 @@ function setupMobileControls() {
 
     instructions.addEventListener('click', () => {
         instructions.style.display = 'none';
+        requestMobileFeatures(); // Call on user interaction
     });
 
     // Joystick Logic
@@ -512,7 +562,7 @@ function loadEnemies() {
     const loader = new THREE.GLTFLoader();
     const url = 'https://raw.githubusercontent.com/mrdoob/three.js/master/examples/models/gltf/Soldier.glb';
     for(let i=0; i<8; i++) spawnEnemy(loader, url);
-    setInterval(() => { if(enemies.length < 30 && !isGameOver && (isMobile || document.pointerLockElement)) spawnEnemy(loader, url); }, 2000);
+    setInterval(() => { if(enemies.length < 30 && !isGameOver && (isMobile || instructions.style.display === 'none')) spawnEnemy(loader, url); }, 2000);
 }
 
 function updatePhysics(delta) {
@@ -580,9 +630,24 @@ function updatePhysics(delta) {
     });
 }
 
-function gameOver() { isGameOver = true; gameOverScreen.style.display = 'flex'; if(document.pointerLockElement) document.exitPointerLock(); }
-function onWindowResize() { camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight); }
-function animate() { requestAnimationFrame(animate); updatePhysics(clock.getDelta()); renderer.render(scene, camera); }
+function gameOver() { 
+    isGameOver = true; 
+    gameOverScreen.style.display = 'flex'; 
+    if(document.pointerLockElement) document.exitPointerLock(); 
+}
+
+function onWindowResize() { 
+    camera.aspect = window.innerWidth / window.innerHeight; 
+    camera.updateProjectionMatrix(); 
+    renderer.setSize(window.innerWidth, window.innerHeight); 
+}
+
+function animate() { 
+    requestAnimationFrame(animate); 
+    updatePhysics(clock.getDelta()); 
+    renderer.render(scene, camera); 
+}
+
 window.onload = init;
 </script>
 </body>
